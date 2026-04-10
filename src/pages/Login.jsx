@@ -71,9 +71,9 @@ export default function Login() {
   return (
     <div className="min-h-screen flex grid-bg" style={{ background: 'var(--bg-primary)' }}>
       {/* Left Panel */}
-      <div className="hidden lg:flex flex-col justify-between w-1/2 p-12" style={{ borderRight: '1px solid var(--border-primary)' }}>
+      <div className="hidden lg:flex flex-col justify-between w-1/2 p-10" style={{ borderRight: '1px solid var(--border-primary)' }}>
         {/* Logo */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 -mt-5 ">
           <div className="w-10 h-10 rounded-xl flex items-center justify-center"
             style={{ background: 'linear-gradient(135deg, #0EA5E9, #6366F1)' }}>
             <span className="font-display font-800 text-white text-sm tracking-widest">TF</span>
@@ -209,6 +209,42 @@ export default function Login() {
               )}
             </button>
           </form>
+
+          {/* Demo accounts */}
+          {/* <div>
+            <p className="text-xs font-700 uppercase tracking-widest mb-3" style={{ color: 'var(--text-muted)' }}>
+              Quick Demo Access
+            </p>
+            <div className="flex flex-col gap-2">
+              {DEMO_ACCOUNTS.map(account => {
+                const Icon = account.icon;
+                return (
+                  <button
+                    key={account.role}
+                    onClick={() => fillDemo(account)}
+                    className="flex items-center gap-3 p-3 rounded-xl text-left transition-all"
+                    style={{
+                      background: 'var(--bg-card)',
+                      border: `1px solid ${email === account.email ? account.color + '40' : 'var(--border-primary)'}`,
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.borderColor = account.color + '40'}
+                    onMouseLeave={e => e.currentTarget.style.borderColor = email === account.email ? account.color + '40' : 'var(--border-primary)'}
+                  >
+                    <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
+                      style={{ background: account.color + '18' }}>
+                      <Icon size={17} style={{ color: account.color }} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-600" style={{ color: 'var(--text-primary)' }}>{account.label}</p>
+                      <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{account.subtitle}</p>
+                    </div>
+                    <ArrowRight size={14} style={{ color: 'var(--text-muted)' }} />
+                  </button>
+                );
+              })}
+            </div>
+          </div> */}
+
           <p className="text-xs text-center mt-6" style={{ color: 'var(--text-muted)' }}>
             TrackField CRM — B2B SaaS Platform
           </p>

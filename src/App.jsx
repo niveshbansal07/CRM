@@ -12,10 +12,11 @@ import SACompanies from './pages/SuperAdmin/Companies';
 import SAUsers from './pages/SuperAdmin/Users';
 import SAPlans from './pages/SuperAdmin/Plans';
 import SAAnalytics from './pages/SuperAdmin/Analytics';
+import SASystemHealth from './pages/SuperAdmin/SystemHealth';
+import SARevenue from './pages/SuperAdmin/Revenue';
 
 // Company Admin
 import CADashboard from './pages/CompanyAdmin/Dashboard';
-import CAHumanResources from './pages/CompanyAdmin/HumanResources';
 import CAEmployees from './pages/CompanyAdmin/Employees';
 import CALeads from './pages/CompanyAdmin/Leads';
 import CADeals from './pages/CompanyAdmin/Deals';
@@ -38,6 +39,8 @@ import UTasks from './pages/UserDashboard/Tasks';
 import UContacts from './pages/UserDashboard/Contacts';
 import UTickets from './pages/UserDashboard/Tickets';
 import UProfile from './pages/UserDashboard/Profile';
+import UHRMS from './pages/UserDashboard/HRMSUser';
+import LeaveManagement from './pages/UserDashboard/LeaveManagement';
 
 function ProtectedRoute({ children, allowedRoles }) {
   const { currentUser } = useAuth();
@@ -68,12 +71,14 @@ function AppRoutes() {
           <Layout role="super_admin" />
         </ProtectedRoute>
       }>
-        <Route path="dashboard"    element={<SADashboard />} />
-        <Route path="companies"    element={<SACompanies />} />
-        <Route path="users"        element={<SAUsers />} />
-        <Route path="plans"        element={<SAPlans />} />
-        <Route path="analytics"    element={<SAAnalytics />} />
+        <Route path="dashboard" element={<SADashboard />} />
+        <Route path="companies" element={<SACompanies />} />
+        <Route path="users" element={<SAUsers />} />
+        <Route path="plans" element={<SAPlans />} />
+        <Route path="analytics" element={<SAAnalytics />} />
         <Route path="activity-log" element={<SAActivityLog />} />
+        <Route path="system" element={<SASystemHealth />} />
+        <Route path="revenue" element={<SARevenue />} />
         <Route index element={<Navigate to="dashboard" replace />} />
       </Route>
 
@@ -83,34 +88,36 @@ function AppRoutes() {
           <Layout role="company_admin" />
         </ProtectedRoute>
       }>
-        <Route path="dashboard"  element={<CADashboard />} />
-        <Route path="human-resources" element={<CAHumanResources />} />
-        <Route path="employees"  element={<CAEmployees />} />
-        <Route path="leads"      element={<CALeads />} />
-        <Route path="deals"      element={<CADeals />} />
-        <Route path="contacts"   element={<CAContacts />} />
-        <Route path="payments"   element={<CAPayments />} />
-        <Route path="calendar"   element={<CACalendar />} />
+        <Route path="dashboard" element={<CADashboard />} />
+        <Route path="employees" element={<CAEmployees />} />
+        <Route path="leads" element={<CALeads />} />
+        <Route path="deals" element={<CADeals />} />
+        <Route path="contacts" element={<CAContacts />} />
+        <Route path="payments" element={<CAPayments />} />
+        <Route path="calendar" element={<CACalendar />} />
         <Route path="automation" element={<CAAutomation />} />
-        <Route path="reports"    element={<CAReports />} />
-        <Route path="modules"    element={<CAModuleControl />} />
-        <Route path="settings"   element={<CASettings />} />
+        <Route path="reports" element={<CAReports />} />
+        <Route path="leaves" element={<LeaveManagement />} />
+        <Route path="modules" element={<CAModuleControl />} />
+        <Route path="settings" element={<CASettings />} />
         <Route index element={<Navigate to="dashboard" replace />} />
       </Route>
 
       {/* ── USER DASHBOARD ── */}
       <Route path="/user" element={
-        <ProtectedRoute allowedRoles={['sales','manager','support','finance']}>
+        <ProtectedRoute allowedRoles={['sales', 'manager', 'support', 'finance', 'marketing', 'hr', 'operations', 'customer_success', 'legal']}>
           <Layout role="user" />
         </ProtectedRoute>
       }>
-        <Route path="dashboard"  element={<UDashboard />} />
-        <Route path="profile"    element={<UProfile />} />
-        <Route path="leads"      element={<UMyLeads />} />
-        <Route path="deals"      element={<UMyDeals />} />
-        <Route path="tasks"      element={<UTasks />} />
-        <Route path="contacts"   element={<UContacts />} />
-        <Route path="tickets"    element={<UTickets />} />
+        <Route path="dashboard" element={<UDashboard />} />
+        <Route path="profile" element={<UProfile />} />
+        <Route path="leads" element={<UMyLeads />} />
+        <Route path="deals" element={<UMyDeals />} />
+        <Route path="tasks" element={<UTasks />} />
+        <Route path="contacts" element={<UContacts />} />
+        <Route path="tickets" element={<UTickets />} />
+        <Route path="hrms" element={<UHRMS />} />
+        <Route path="leave-approvals" element={<LeaveManagement />} />
         <Route index element={<Navigate to="dashboard" replace />} />
       </Route>
 

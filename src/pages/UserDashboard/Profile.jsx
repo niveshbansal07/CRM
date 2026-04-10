@@ -5,7 +5,7 @@ import {
   User, Mail, Phone, Building2, Briefcase, Calendar, Edit2, Save,
   CheckCircle2, TrendingUp, Layers, CheckSquare, Award, Star,
   Activity, Clock, Target, Zap, Camera, Lock, Bell, Shield,
-  MessageSquare, ChevronRight, BarChart2,
+  MessageSquare, ChevronRight, BarChart2, BadgeCheck, FileText, Download,
 } from 'lucide-react';
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -114,8 +114,11 @@ export default function UProfile() {
           {/* Info */}
           <div className="flex-1">
             <div className="flex items-center gap-3 mb-1 flex-wrap">
-              <h1 className="font-display font-700 text-2xl" style={{ color: 'var(--text-primary)' }}>
+              <h1 className="flex items-center font-display font-700 text-2xl" style={{ color: 'var(--text-primary)' }}>
                 {currentUser?.name}
+                {currentUser?.verificationStatus && (
+                  <BadgeCheck size={20} className="ml-2" title="Verified Employee" style={{ color: '#10B981' }} />
+                )}
               </h1>
               <span className="px-3 py-1 rounded-full text-xs font-700"
                 style={{ background: roleConf.bg, color: roleConf.color }}>
@@ -211,7 +214,35 @@ export default function UProfile() {
 
             {/* Skill / KPI breakdown */}
             <div className="card p-5">
-              <p className="text-sm font-700 mb-4" style={{ color: 'var(--text-primary)' }}>Performance Breakdown</p>
+              
+              {/* Monthly Target Progress Bar */}
+              <div className="mb-6 p-4 rounded-xl border" style={{ borderColor: 'var(--border-primary)', background: 'var(--bg-secondary)' }}>
+                <div className="flex justify-between items-end mb-2">
+                  <div>
+                    <p className="text-xs font-600 uppercase tracking-wider mb-1 text-emerald-500">Monthly Target</p>
+                    <p className="font-display font-700 text-xl" style={{ color: 'var(--text-primary)' }}>
+                      ₹{(wonValue/1000).toFixed(0)}K <span className="text-sm font-600" style={{ color: 'var(--text-muted)' }}>/ ₹50K</span>
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-xs font-700 px-2 py-1 rounded-full text-emerald-500 bg-emerald-500/10">
+                      {Math.min(((wonValue)/50000)*100, 100).toFixed(0)}% Achieved
+                    </span>
+                  </div>
+                </div>
+                <div className="h-2.5 rounded-full overflow-hidden" style={{ background: 'var(--border-primary)' }}>
+                  <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${Math.min(((wonValue)/50000)*100, 100)}%` }}></div>
+                </div>
+              </div>
+
+              <div className="flex justify-between items-center mb-4">
+                <p className="text-sm font-700" style={{ color: 'var(--text-primary)' }}>Performance Breakdown</p>
+                {myTasks.filter(t => t.status === 'pending').length > 0 && (
+                  <span className="text-[10px] font-700 uppercase tracking-wider px-2 py-0.5 rounded bg-amber-500/10 text-amber-500">
+                    {myTasks.filter(t => t.status === 'pending').length} Pending Tasks
+                  </span>
+                )}
+              </div>
               <div className="flex flex-col gap-4">
                 {[
                   { label: 'Lead Conversion Rate', value: convRate, max: 100, color: '#0EA5E9', unit: '%' },
@@ -242,11 +273,13 @@ export default function UProfile() {
               <div className="flex flex-col gap-3">
                 {[
                   { icon: User,      label: 'Full Name',   value: currentUser?.name     },
+                  { icon: BadgeCheck,label: 'Employee ID', value: currentUser?.employeeId },
                   { icon: Mail,      label: 'Email',       value: currentUser?.email    },
                   { icon: Phone,     label: 'Phone',       value: form.phone            },
                   { icon: Briefcase, label: 'Department',  value: currentUser?.department },
                   { icon: Building2, label: 'Company',     value: currentCompany?.name  },
-                  { icon: Calendar,  label: 'Last Login',  value: currentUser?.lastLogin },
+                  { icon: Calendar,  label: 'Joining Date',value: currentUser?.joiningDate },
+                  { icon: Clock,     label: 'Last Login',  value: currentUser?.lastLogin },
                 ].map(r => {
                   const Icon = r.icon;
                   return (
@@ -262,6 +295,48 @@ export default function UProfile() {
                     </div>
                   );
                 })}
+              </div>
+            </div>
+
+            {/* Documents section */}
+            <div className="card p-5">
+              <p className="text-sm font-700 mb-4" style={{ color: 'var(--text-primary)' }}>Documents & Credentials</p>
+              <div className="flex flex-col gap-3">
+                {currentUser?.offerLetter && (
+                  <div className="flex items-center justify-between p-3 rounded-lg" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-primary)' }}>
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded flex items-center justify-center pointer-events-none" style={{ background: 'rgba(14, 165, 233, 0.1)', color: '#0EA5E9' }}>
+                        <FileText size={16} />
+                      </div>
+                      <div>
+                        <p className="text-sm font-600" style={{ color: 'var(--text-primary)' }}>Offer Letter</p>
+                        <p style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>{currentUser.offerLetter}</p>
+                      </div>
+                    </div>
+                    <button className="p-2 rounded-md transition-colors" style={{ color: 'var(--text-muted)' }}>
+                      <Download size={14} />
+                    </button>
+                  </div>
+                )}
+                {currentUser?.documents?.map((doc, i) => (
+                  <div key={i} className="flex items-center justify-between p-3 rounded-lg" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-primary)' }}>
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded flex items-center justify-center pointer-events-none" style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10B981' }}>
+                        <FileText size={16} />
+                      </div>
+                      <div>
+                        <p className="text-sm font-600 capitalize" style={{ color: 'var(--text-primary)' }}>{doc.type.replace('_', ' ')}</p>
+                        <p style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>{doc.name}</p>
+                      </div>
+                    </div>
+                    <button className="p-2 rounded-md transition-colors" style={{ color: 'var(--text-muted)' }}>
+                      <Download size={14} />
+                    </button>
+                  </div>
+                ))}
+                {(!currentUser?.documents && !currentUser?.offerLetter) && (
+                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>No documents available.</p>
+                )}
               </div>
             </div>
 

@@ -1,244 +1,310 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { PageHeader, Badge, Modal, FormGroup, ConfirmDialog, EmptyState } from '../../components/common';
-import { Plus, Search, Contact, Phone, Mail, Edit2, Trash2, Star, Tag } from 'lucide-react';
+import { Modal, FormGroup } from '../../components/common';
+import { Plus, ChevronLeft, ChevronRight, Calendar as CalIcon, Clock, User, Tag } from 'lucide-react';
 
-const SOURCES = ['Website','LinkedIn','Referral','Cold Call','Event','Ad','Instagram','Other'];
+const EVENT_TYPES = ['Meeting', 'Call', 'Demo', 'Follow-up', 'Review', 'Deadline', 'Other'];
+const TYPE_COLORS = {
+  Meeting:    '#6366F1',
+  Call:       '#10B981',
+  Demo:       '#0EA5E9',
+  'Follow-up':'#F59E0B',
+  Review:     '#A855F7',
+  Deadline:   '#EF4444',
+  Other:      '#64748B',
+};
 
-export default function CAContacts() {
-  const { currentCompany, leads, addLead, updateLead, deleteLead } = useAuth();
-  const [search, setSearch]     = useState('');
-  const [filterTag, setFilterTag] = useState('all');
-  const [showAdd, setShowAdd]   = useState(false);
-  const [editTarget, setEditTarget] = useState(null);
-  const [deleteTarget, setDeleteTarget] = useState(null);
-  const [view, setView]         = useState('grid'); // grid | list
+const MONTHS    = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const WEEKDAYS  = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
-  const defaultForm = { name:'', contact:'', email:'', phone:'', status:'new', source:'Website', value:'', priority:'medium', tags:[] };
+// Pre-seed events relative to today
+function seedEvents(companyId) {
+  const now   = new Date();
+  const y     = now.getFullYear();
+  const m     = now.getMonth();
+  const d     = now.getDate();
+  return [
+    { id:'e1', companyId, title:'Q1 Review Meeting',    type:'Review',     date:`${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`, time:'10:00', attendees:'Arjun, Sanya', notes:'Discuss Q1 KPIs' },
+    { id:'e2', companyId, title:'Demo: TechCorp Client', type:'Demo',       date:`${y}-${String(m+1).padStart(2,'0')}-${String(d+1).padStart(2,'0')}`, time:'14:30', attendees:'Kavya', notes:'Product demo for enterprise plan' },
+    { id:'e3', companyId, title:'Follow-up: StartupNest',type:'Follow-up',  date:`${y}-${String(m+1).padStart(2,'0')}-${String(d+2).padStart(2,'0')}`, time:'11:00', attendees:'Rohan', notes:'Check on proposal status' },
+    { id:'e4', companyId, title:'Board Strategy Call',   type:'Call',       date:`${y}-${String(m+1).padStart(2,'0')}-${String(d+3).padStart(2,'0')}`, time:'09:00', attendees:'All Teams', notes:'Q2 planning' },
+    { id:'e5', companyId, title:'MedPlus Contract Deadline', type:'Deadline', date:`${y}-${String(m+1).padStart(2,'0')}-${String(d+5).padStart(2,'0')}`, time:'17:00', attendees:'Legal', notes:'Sign off required' },
+  ];
+}
+
+export default function CACalendar() {
+  const { currentCompany, tasks } = useAuth();
+
+  const todayObj = new Date();
+  const [year,  setYear]  = useState(todayObj.getFullYear());
+  const [month, setMonth] = useState(todayObj.getMonth());
+  const [events, setEvents] = useState(() => seedEvents(currentCompany?.id));
+  const [showAdd, setShowAdd] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(null);
+  const [selectedEvent, setSelectedEvent] = useState(null);
+  const defaultForm = { title:'', type:'Meeting', date:'', time:'', attendees:'', notes:'' };
   const [form, setForm] = useState(defaultForm);
 
-  // Contacts = leads of this company
-  const contacts = leads.filter(l => l.companyId === currentCompany?.id);
-  const allTags   = [...new Set(contacts.flatMap(c => c.tags || []))];
+  // Combine CRM events + tasks with dueDate as events
+  const companyEvents = useMemo(() => [
+    ...events.filter(e => e.companyId === currentCompany?.id),
+    ...(tasks || [])
+      .filter(t => t.companyId === currentCompany?.id && t.dueDate)
+      .map(t => ({ id:`task-${t.id}`, companyId: t.companyId, title: t.title, type: t.type || 'Other', date: t.dueDate, time:'', isTask: true })),
+  ], [events, tasks, currentCompany]);
 
-  const filtered = contacts.filter(c => {
-    const matchSearch = c.name.toLowerCase().includes(search.toLowerCase()) ||
-      c.contact.toLowerCase().includes(search.toLowerCase()) ||
-      c.email.toLowerCase().includes(search.toLowerCase());
-    const matchTag = filterTag === 'all' || (c.tags || []).includes(filterTag);
-    return matchSearch && matchTag;
-  });
+  // Days in month
+  const daysInMonth  = new Date(year, month + 1, 0).getDate();
+  const firstDayOfWk = new Date(year, month, 1).getDay();
+  const days = [...Array(firstDayOfWk).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)];
+
+  const eventsForDay = (d) => {
+    if (!d) return [];
+    const dateStr = `${year}-${String(month + 1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    return companyEvents.filter(e => e.date === dateStr);
+  };
+
+  const isToday = (d) => d === todayObj.getDate() && month === todayObj.getMonth() && year === todayObj.getFullYear();
+
+  const prevMonth = () => { if (month === 0) { setMonth(11); setYear(y => y-1); } else setMonth(m => m-1); };
+  const nextMonth = () => { if (month === 11) { setMonth(0);  setYear(y => y+1); } else setMonth(m => m+1); };
+
+  const openAdd = (d) => {
+    const dateStr = `${year}-${String(month + 1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    setForm({ ...defaultForm, date: dateStr });
+    setShowAdd(true);
+  };
 
   const handleAdd = () => {
-    if (!form.name || !form.contact) return;
-    addLead({ ...form, companyId: currentCompany.id, value: Number(form.value) || 0 });
-    setShowAdd(false);
-    setForm(defaultForm);
+    if (!form.title || !form.date) return;
+    setEvents(prev => [...prev, { ...form, id:`e${Date.now()}`, companyId: currentCompany?.id }]);
+    setShowAdd(false); setForm(defaultForm);
   };
 
-  const handleEdit = () => {
-    updateLead(editTarget.id, { ...form, value: Number(form.value) });
-    setEditTarget(null);
-  };
+  // Upcoming events (next 7 days)
+  const upcoming = companyEvents.filter(e => {
+    const d = new Date(e.date);
+    const now = new Date(); now.setHours(0,0,0,0);
+    const diff = (d - now) / 86400000;
+    return diff >= 0 && diff <= 7;
+  }).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 7);
 
-  const openEdit = (c) => { setEditTarget(c); setForm({ ...c, tags: c.tags || [] }); };
-
-  const ContactForm = () => (
-    <div className="flex flex-col gap-4">
-      <div className="grid grid-cols-2 gap-3">
-        <FormGroup label="Company Name" required>
-          <input className="input-field" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Acme Corp" />
-        </FormGroup>
-        <FormGroup label="Contact Person" required>
-          <input className="input-field" value={form.contact} onChange={e=>setForm({...form,contact:e.target.value})} placeholder="Jane Doe" />
-        </FormGroup>
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <FormGroup label="Email">
-          <input className="input-field" type="email" value={form.email} onChange={e=>setForm({...form,email:e.target.value})} />
-        </FormGroup>
-        <FormGroup label="Phone">
-          <input className="input-field" value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})} placeholder="+91 9876543210" />
-        </FormGroup>
-      </div>
-      <div className="grid grid-cols-3 gap-3">
-        <FormGroup label="Status">
-          <select className="select-field" value={form.status} onChange={e=>setForm({...form,status:e.target.value})}>
-            {['new','contacted','qualified','proposal','lost'].map(s=><option key={s} value={s}>{s}</option>)}
+  const EventForm = () => (
+    <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+      <FormGroup label="Event Title" required>
+        <input className="input-field" value={form.title} onChange={e => setForm({...form, title:e.target.value})} placeholder="e.g., Demo with TechCorp" />
+      </FormGroup>
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12 }}>
+        <FormGroup label="Type">
+          <select className="select-field" value={form.type} onChange={e => setForm({...form, type:e.target.value})}>
+            {EVENT_TYPES.map(t => <option key={t}>{t}</option>)}
           </select>
         </FormGroup>
-        <FormGroup label="Source">
-          <select className="select-field" value={form.source} onChange={e=>setForm({...form,source:e.target.value})}>
-            {SOURCES.map(s=><option key={s}>{s}</option>)}
-          </select>
+        <FormGroup label="Date">
+          <input className="input-field" type="date" value={form.date} onChange={e => setForm({...form, date:e.target.value})} />
         </FormGroup>
-        <FormGroup label="Lead Value (₹)">
-          <input className="input-field" type="number" value={form.value} onChange={e=>setForm({...form,value:e.target.value})} placeholder="50000" />
+        <FormGroup label="Time">
+          <input className="input-field" type="time" value={form.time} onChange={e => setForm({...form, time:e.target.value})} />
         </FormGroup>
       </div>
-      <FormGroup label="Tags (comma separated)">
-        <input className="input-field" value={(form.tags||[]).join(',')}
-          onChange={e=>setForm({...form, tags: e.target.value.split(',').map(t=>t.trim()).filter(Boolean)})}
-          placeholder="B2B, Tech, Enterprise" />
+      <FormGroup label="Attendees">
+        <input className="input-field" value={form.attendees} onChange={e => setForm({...form, attendees:e.target.value})} placeholder="Arjun, Kavya, Rohan..." />
+      </FormGroup>
+      <FormGroup label="Notes">
+        <textarea className="input-field" rows={2} value={form.notes} onChange={e => setForm({...form, notes:e.target.value})} placeholder="Agenda or context..." style={{ resize:'vertical' }} />
       </FormGroup>
     </div>
   );
 
   return (
     <div className="page-enter">
-      <PageHeader title="Contacts" subtitle={`${contacts.length} total contacts`}>
-        <button className="btn-primary" onClick={() => setShowAdd(true)}><Plus size={15} /> Add Contact</button>
-      </PageHeader>
-
-      {/* Stats row */}
-      <div className="flex gap-3 mb-5 flex-wrap">
-        {[
-          { label:'All',        count: contacts.length,                                 value:'all',   color:'#64748B' },
-          { label:'New',        count: contacts.filter(c=>c.status==='new').length,     value:'new',   color:'#0EA5E9' },
-          { label:'Qualified',  count: contacts.filter(c=>c.status==='qualified').length, value:'qualified', color:'#F59E0B' },
-          { label:'Hot Leads',  count: contacts.filter(c=>c.priority==='high').length,  value:'high',  color:'#EF4444' },
-        ].map(s => (
-          <div key={s.label} className="card px-4 py-2.5 flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full" style={{ background:s.color }}></div>
-            <span className="font-700 text-sm" style={{ color:'var(--text-primary)' }}>{s.count}</span>
-            <span className="text-xs" style={{ color:'var(--text-muted)' }}>{s.label}</span>
+      {/* Header */}
+      <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', marginBottom:20 }}>
+        <div>
+          <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:4 }}>
+            <CalIcon size={14} style={{ color:'#6366F1' }} />
+            <span style={{ fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.12em', color:'#6366F1' }}>Schedule</span>
           </div>
-        ))}
+          <h1 style={{ fontSize:28, fontWeight:700, color:'var(--text-primary)' }}>Calendar</h1>
+          <p style={{ fontSize:13, color:'var(--text-muted)', marginTop:4 }}>
+            {upcoming.length} events in the next 7 days
+          </p>
+        </div>
+        <button className="btn-primary" onClick={() => setShowAdd(true)}><Plus size={14} /> New Event</button>
       </div>
 
-      {/* Controls */}
-      <div className="flex items-center gap-3 mb-5 flex-wrap">
-        <div className="relative flex-1 min-w-64">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color:'var(--text-muted)' }} />
-          <input className="input-field pl-9" placeholder="Search contacts..." value={search} onChange={e=>setSearch(e.target.value)} />
-        </div>
-        {allTags.length > 0 && (
-          <select className="select-field" style={{ width:140 }} value={filterTag} onChange={e=>setFilterTag(e.target.value)}>
-            <option value="all">All Tags</option>
-            {allTags.map(t=><option key={t}>{t}</option>)}
-          </select>
-        )}
-        <div className="flex gap-1 p-1 rounded-lg" style={{ background:'var(--bg-secondary)', border:'1px solid var(--border-primary)' }}>
-          {['grid','list'].map(m=>(
-            <button key={m} onClick={()=>setView(m)} className="px-3 py-1.5 rounded-md text-xs font-600 capitalize transition-all"
-              style={{ background: view===m ? 'var(--bg-card)':'transparent', color: view===m ? 'var(--text-primary)':'var(--text-muted)' }}>
-              {m}
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 280px', gap:16 }}>
+        {/* ── CALENDAR GRID ── */}
+        <div className="card" style={{ padding:0, overflow:'hidden' }}>
+          {/* Month nav */}
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'16px 20px', borderBottom:'1px solid var(--border-primary)' }}>
+            <button onClick={prevMonth} style={{ padding:6, borderRadius:8, background:'var(--bg-secondary)', border:'1px solid var(--border-primary)', cursor:'pointer', color:'var(--text-muted)', display:'flex' }}>
+              <ChevronLeft size={15} />
             </button>
-          ))}
+            <div style={{ textAlign:'center' }}>
+              <p style={{ fontSize:16, fontWeight:700, color:'var(--text-primary)' }}>{MONTHS[month]}</p>
+              <p style={{ fontSize:11, color:'var(--text-muted)' }}>{year}</p>
+            </div>
+            <button onClick={nextMonth} style={{ padding:6, borderRadius:8, background:'var(--bg-secondary)', border:'1px solid var(--border-primary)', cursor:'pointer', color:'var(--text-muted)', display:'flex' }}>
+              <ChevronRight size={15} />
+            </button>
+          </div>
+
+          {/* Weekday headers */}
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(7, 1fr)', padding:'10px 16px 6px' }}>
+            {WEEKDAYS.map(w => (
+              <div key={w} style={{ textAlign:'center', fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em', padding:'4px 0' }}>
+                {w}
+              </div>
+            ))}
+          </div>
+
+          {/* Day cells */}
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(7, 1fr)', gap:1, padding:'0 16px 16px', background:'var(--bg-card)' }}>
+            {days.map((d, i) => {
+              const dayEvents = eventsForDay(d);
+              const today = d && isToday(d);
+              return (
+                <div key={i} onClick={() => d && openAdd(d)}
+                  style={{ minHeight:72, padding:'6px 6px 4px', borderRadius:8, background: today ? 'rgba(99,102,241,0.08)' : 'transparent',
+                    border: today ? '1.5px solid rgba(99,102,241,0.3)' : '1px solid transparent',
+                    cursor: d ? 'pointer' : 'default', transition:'all 0.12s' }}
+                  onMouseEnter={e => { if (d) e.currentTarget.style.background = today ? 'rgba(99,102,241,0.12)' : 'var(--bg-secondary)'; }}
+                  onMouseLeave={e => { if (d) e.currentTarget.style.background = today ? 'rgba(99,102,241,0.08)' : 'transparent'; }}>
+
+                  {d && (
+                    <>
+                      <p style={{ fontSize:12, fontWeight: today ? 800 : 500, color: today ? '#6366F1' : 'var(--text-secondary)', marginBottom:3, textAlign:'center' }}>
+                        {d}
+                        {today && <span style={{ fontSize:8, display:'block', color:'#6366F1', fontWeight:700, letterSpacing:'0.06em' }}>TODAY</span>}
+                      </p>
+                      <div style={{ display:'flex', flexDirection:'column', gap:2 }}>
+                        {dayEvents.slice(0, 2).map(ev => (
+                          <div key={ev.id} onClick={e => { e.stopPropagation(); setSelectedEvent(ev); }}
+                            style={{ fontSize:9, fontWeight:700, padding:'2px 5px', borderRadius:4,
+                              background: `${TYPE_COLORS[ev.type] || '#64748B'}20`,
+                              color: TYPE_COLORS[ev.type] || '#64748B',
+                              overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', cursor:'pointer' }}>
+                            {ev.isTask && '⊡ '}{ev.title}
+                          </div>
+                        ))}
+                        {dayEvents.length > 2 && (
+                          <p style={{ fontSize:8, color:'var(--text-muted)', fontWeight:700, paddingLeft:3 }}>+{dayEvents.length - 2} more</p>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* ── SIDEBAR: Upcoming ── */}
+        <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+          {/* Legend */}
+          <div className="card" style={{ padding:'14px 16px' }}>
+            <p style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:10 }}>Event Types</p>
+            <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+              {Object.entries(TYPE_COLORS).map(([type, color]) => (
+                <div key={type} style={{ display:'flex', alignItems:'center', gap:7 }}>
+                  <div style={{ width:8, height:8, borderRadius:2, background:color, flexShrink:0 }} />
+                  <span style={{ fontSize:11, color:'var(--text-secondary)' }}>{type}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Upcoming events */}
+          <div className="card" style={{ padding:'14px 16px', flex:1 }}>
+            <p style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:10 }}>Upcoming (7 days)</p>
+            {upcoming.length === 0 ? (
+              <p style={{ fontSize:12, color:'var(--text-muted)', fontStyle:'italic', textAlign:'center', paddingTop:8 }}>No upcoming events</p>
+            ) : (
+              <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                {upcoming.map(ev => {
+                  const color = TYPE_COLORS[ev.type] || '#64748B';
+                  const evDate = new Date(ev.date);
+                  const isEv = evDate.toDateString() === todayObj.toDateString();
+                  return (
+                    <div key={ev.id} style={{ padding:'9px 10px', borderRadius:10, background:`${color}08`, border:`1px solid ${color}20`, cursor:'pointer', transition:'all 0.15s' }}
+                      onClick={() => setSelectedEvent(ev)}
+                      onMouseEnter={e => e.currentTarget.style.background=`${color}14`}
+                      onMouseLeave={e => e.currentTarget.style.background=`${color}08`}>
+                      <div style={{ display:'flex', alignItems:'flex-start', gap:7 }}>
+                        <div style={{ width:6, height:6, borderRadius:'50%', background:color, marginTop:4, flexShrink:0 }} />
+                        <div style={{ flex:1, minWidth:0 }}>
+                          <p style={{ fontSize:12, fontWeight:700, color:'var(--text-primary)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{ev.title}</p>
+                          <div style={{ display:'flex', alignItems:'center', gap:6, marginTop:3 }}>
+                            <span style={{ fontSize:10, color:'var(--text-muted)' }}>
+                              {isEv ? 'Today' : evDate.toLocaleDateString('en-IN',{day:'numeric',month:'short'})}
+                            </span>
+                            {ev.time && <span style={{ fontSize:10, color, fontWeight:700 }}>{ev.time}</span>}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Quick add today */}
+          <button onClick={() => openAdd(todayObj.getDate())} className="btn-secondary" style={{ width:'100%', justifyContent:'center' }}>
+            <Plus size={13} /> Add Today's Event
+          </button>
         </div>
       </div>
 
-      {filtered.length === 0 ? (
-        <EmptyState icon={Contact} title="No Contacts Found" description="Add your first contact to build your database." action={<button className="btn-primary" onClick={()=>setShowAdd(true)}><Plus size={14} /> Add Contact</button>} />
-      ) : view === 'grid' ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-          {filtered.map(c => (
-            <div key={c.id} className="card card-hover p-4 group">
-              {/* Header */}
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-11 h-11 rounded-full flex items-center justify-center text-base font-700 flex-shrink-0"
-                    style={{ background:'linear-gradient(135deg,#0EA5E9,#6366F1)', color:'white' }}>
-                    {c.contact?.[0]?.toUpperCase() || '?'}
-                  </div>
-                  <div>
-                    <p className="font-700 text-sm" style={{ color:'var(--text-primary)' }}>{c.contact}</p>
-                    <p className="text-xs" style={{ color:'var(--text-muted)' }}>{c.name}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button onClick={()=>openEdit(c)} className="p-1 rounded" style={{ color:'var(--text-muted)' }}><Edit2 size={13} /></button>
-                  <button onClick={()=>setDeleteTarget(c)} className="p-1 rounded" style={{ color:'var(--text-muted)' }}><Trash2 size={13} /></button>
-                </div>
-              </div>
+      {/* Add event modal */}
+      <Modal isOpen={showAdd} onClose={() => setShowAdd(false)} title="New Event" width={520}>
+        <EventForm />
+        <div style={{ display:'flex', gap:10, justifyContent:'flex-end', marginTop:18 }}>
+          <button className="btn-secondary" onClick={() => setShowAdd(false)}>Cancel</button>
+          <button className="btn-primary" onClick={handleAdd}>Create Event</button>
+        </div>
+      </Modal>
 
-              {/* Contact info */}
-              <div className="flex flex-col gap-1.5 mb-3">
-                {c.email && <a href={`mailto:${c.email}`} className="flex items-center gap-2 text-xs transition-colors" style={{ color:'var(--text-muted)' }}
-                  onMouseEnter={e=>e.currentTarget.style.color='#0EA5E9'} onMouseLeave={e=>e.currentTarget.style.color='var(--text-muted)'}>
-                  <Mail size={11} /> {c.email}
-                </a>}
-                {c.phone && <a href={`tel:${c.phone}`} className="flex items-center gap-2 text-xs transition-colors" style={{ color:'var(--text-muted)' }}
-                  onMouseEnter={e=>e.currentTarget.style.color='#10B981'} onMouseLeave={e=>e.currentTarget.style.color='var(--text-muted)'}>
-                  <Phone size={11} /> {c.phone}
-                </a>}
-              </div>
-
-              {/* Footer */}
-              <div className="flex items-center justify-between pt-3" style={{ borderTop:'1px solid var(--border-primary)' }}>
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <Badge value={c.status} />
-                  {c.priority === 'high' && <span className="badge" style={{ background:'rgba(239,68,68,0.1)', color:'#EF4444' }}>HOT</span>}
-                </div>
-                <span className="font-mono text-xs font-700" style={{ color:'#10B981' }}>
-                  {c.value ? `₹${c.value.toLocaleString()}` : '—'}
-                </span>
-              </div>
-
-              {/* Tags */}
-              {c.tags?.length > 0 && (
-                <div className="flex flex-wrap gap-1 mt-2">
-                  {c.tags.map(tag=>(
-                    <span key={tag} className="flex items-center gap-1 text-xs px-1.5 py-0.5 rounded"
-                      style={{ background:'rgba(99,102,241,0.08)', color:'#6366F1' }}>
-                      <Tag size={9} /> {tag}
-                    </span>
-                  ))}
-                </div>
-              )}
+      {/* Event detail modal */}
+      {selectedEvent && (
+        <Modal isOpen={!!selectedEvent} onClose={() => setSelectedEvent(null)} title={selectedEvent.title} width={420}>
+          <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+            <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+              <span style={{ fontSize:11, fontWeight:700, padding:'3px 10px', borderRadius:20, background:`${TYPE_COLORS[selectedEvent.type]||'#64748B'}15`, color:TYPE_COLORS[selectedEvent.type]||'#64748B' }}>
+                {selectedEvent.type}
+              </span>
+              {selectedEvent.isTask && <span style={{ fontSize:11, fontWeight:700, padding:'3px 10px', borderRadius:20, background:'rgba(99,102,241,0.1)', color:'#6366F1' }}>📋 Task</span>}
             </div>
-          ))}
-        </div>
-      ) : (
-        <div className="card overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="data-table">
-              <thead><tr><th>Contact</th><th>Company</th><th>Email</th><th>Phone</th><th>Status</th><th>Value</th><th>Tags</th><th>Actions</th></tr></thead>
-              <tbody>
-                {filtered.map(c=>(
-                  <tr key={c.id}>
-                    <td>
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-700 flex-shrink-0"
-                          style={{ background:'linear-gradient(135deg,#0EA5E9,#6366F1)', color:'white' }}>
-                          {c.contact?.[0]?.toUpperCase()}
-                        </div>
-                        <p className="font-600 text-sm" style={{ color:'var(--text-primary)' }}>{c.contact}</p>
-                      </div>
-                    </td>
-                    <td style={{ fontSize:12 }}>{c.name}</td>
-                    <td><a href={`mailto:${c.email}`} className="text-xs" style={{ color:'#0EA5E9' }}>{c.email}</a></td>
-                    <td><a href={`tel:${c.phone}`} className="text-xs" style={{ color:'#10B981' }}>{c.phone}</a></td>
-                    <td><Badge value={c.status} /></td>
-                    <td><span className="font-mono text-xs font-600" style={{ color:'#10B981' }}>{c.value?`₹${c.value.toLocaleString()}`:'—'}</span></td>
-                    <td>
-                      <div className="flex flex-wrap gap-1">
-                        {(c.tags||[]).map(t=><span key={t} className="text-xs px-1.5 py-0.5 rounded" style={{ background:'rgba(99,102,241,0.08)', color:'#6366F1' }}>{t}</span>)}
-                      </div>
-                    </td>
-                    <td>
-                      <div className="flex gap-1">
-                        <button onClick={()=>openEdit(c)} className="p-1.5 rounded-lg" style={{ color:'var(--text-muted)' }}><Edit2 size={13} /></button>
-                        <button onClick={()=>setDeleteTarget(c)} className="p-1.5 rounded-lg" style={{ color:'var(--text-muted)' }}><Trash2 size={13} /></button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            {[
+              { icon: CalIcon,  label:'Date',      value: selectedEvent.date },
+              { icon: Clock,    label:'Time',      value: selectedEvent.time || '—' },
+              { icon: User,     label:'Attendees', value: selectedEvent.attendees || '—' },
+              { icon: Tag,      label:'Notes',     value: selectedEvent.notes || '—' },
+            ].map(r => {
+              const Icon = r.icon;
+              return (
+                <div key={r.label} style={{ display:'flex', alignItems:'flex-start', gap:10, padding:'9px 12px', borderRadius:10, background:'var(--bg-secondary)' }}>
+                  <Icon size={13} style={{ color:'var(--text-muted)', flexShrink:0, marginTop:1 }} />
+                  <div>
+                    <p style={{ fontSize:9, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.06em', color:'var(--text-muted)', marginBottom:2 }}>{r.label}</p>
+                    <p style={{ fontSize:13, color:'var(--text-primary)', fontWeight:500 }}>{r.value}</p>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-        </div>
+          <div style={{ display:'flex', gap:10, justifyContent:'flex-end', marginTop:18 }}>
+            <button className="btn-secondary" onClick={() => setSelectedEvent(null)}>Close</button>
+            {!selectedEvent.isTask && (
+              <button className="btn-danger" onClick={() => { setEvents(prev => prev.filter(e => e.id !== selectedEvent.id)); setSelectedEvent(null); }}
+                style={{ padding:'8px 16px', borderRadius:8, fontSize:13, fontWeight:700, cursor:'pointer', background:'rgba(239,68,68,0.1)', color:'#EF4444', border:'1px solid rgba(239,68,68,0.3)' }}>
+                Delete Event
+              </button>
+            )}
+          </div>
+        </Modal>
       )}
-
-      <Modal isOpen={showAdd} onClose={()=>setShowAdd(false)} title="Add Contact" width={560}>
-        <ContactForm />
-        <div className="flex gap-3 justify-end mt-5"><button className="btn-secondary" onClick={()=>setShowAdd(false)}>Cancel</button><button className="btn-primary" onClick={handleAdd}>Add Contact</button></div>
-      </Modal>
-      <Modal isOpen={!!editTarget} onClose={()=>setEditTarget(null)} title="Edit Contact" width={560}>
-        <ContactForm />
-        <div className="flex gap-3 justify-end mt-5"><button className="btn-secondary" onClick={()=>setEditTarget(null)}>Cancel</button><button className="btn-primary" onClick={handleEdit}>Save</button></div>
-      </Modal>
-      <ConfirmDialog isOpen={!!deleteTarget} onClose={()=>setDeleteTarget(null)} onConfirm={()=>deleteLead(deleteTarget?.id)} title="Delete Contact" message={`Remove "${deleteTarget?.contact}" from contacts?`} />
     </div>
   );
 }
