@@ -5,51 +5,75 @@ import {
   LayoutDashboard, Building2, Users, CreditCard, BarChart2,
   Zap, Settings, Package, ChevronLeft, ChevronRight,
   LogOut, TrendingUp, CheckSquare, Contact, Ticket,
-  Shield, Layers, Calendar, Activity, UserCircle, UserCog
+  Shield, Layers, Calendar, Activity, UserCircle,
+  DollarSign, Server,
 } from 'lucide-react';
 
 const SUPER_ADMIN_NAV = [
-  { path: '/admin/dashboard',    label: 'Dashboard',     icon: LayoutDashboard },
-  { path: '/admin/companies',    label: 'Companies',     icon: Building2 },
-  { path: '/admin/users',        label: 'All Users',     icon: Users },
-  { path: '/admin/plans',        label: 'Plans',         icon: Package },
-  { path: '/admin/analytics',    label: 'Analytics',     icon: BarChart2 },
-  { path: '/admin/activity-log', label: 'Activity Log',  icon: Activity },
+  { path: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { path: '/admin/companies', label: 'Companies', icon: Building2 },
+  { path: '/admin/users', label: 'All Users', icon: Users },
+  { path: '/admin/plans', label: 'Plans & Billing', icon: Package },
+  { path: '/admin/revenue', label: 'Revenue', icon: DollarSign },
+  { path: '/admin/analytics', label: 'Analytics', icon: BarChart2 },
+  { path: '/admin/system', label: 'System Health', icon: Server },
+  { path: '/admin/activity-log', label: 'Activity Log', icon: Activity },
 ];
 
 const COMPANY_ADMIN_NAV = [
-  { path: '/company/dashboard',  label: 'Dashboard',      icon: LayoutDashboard },
-  { path: '/company/human-resources', label: 'Human Resources', icon: UserCog },
-  { path: '/company/employees',  label: 'Employees',      icon: Users },
-  { path: '/company/leads',      label: 'Leads',          icon: TrendingUp,  module: 'leads' },
-  { path: '/company/deals',      label: 'Deals',          icon: Layers,      module: 'deals' },
-  { path: '/company/contacts',   label: 'Contacts',       icon: Contact,     module: 'contacts' },
-  { path: '/company/calendar',   label: 'Calendar',       icon: Calendar,    module: 'tasks' },
-  { path: '/company/payments',   label: 'Payments',       icon: CreditCard,  module: 'payments' },
-  { path: '/company/automation', label: 'Automation',     icon: Zap,         module: 'automation' },
-  { path: '/company/reports',    label: 'Reports',        icon: BarChart2,   module: 'reports' },
-  { path: '/company/modules',    label: 'Module Control', icon: Shield },
-  { path: '/company/settings',   label: 'Settings',       icon: Settings },
+  { path: '/company/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { path: '/company/employees', label: 'Employees', icon: Users },
+  { path: '/company/leads', label: 'Leads', icon: TrendingUp, module: 'leads' },
+  { path: '/company/deals', label: 'Deals', icon: Layers, module: 'deals' },
+  { path: '/company/contacts', label: 'Contacts', icon: Contact, module: 'contacts' },
+  { path: '/company/payments', label: 'Payments', icon: CreditCard, module: 'payments' },
+  { path: '/company/leaves', label: 'Leave Approvals', icon: Calendar, module: 'hrms' },
+  { path: '/company/automation', label: 'Automation', icon: Zap, module: 'automation' },
+  { path: '/company/reports', label: 'Reports', icon: BarChart2, module: 'reports' },
+  { path: '/company/modules', label: 'Module Control', icon: Shield },
+  { path: '/company/settings', label: 'Settings', icon: Settings },
 ];
 
 const USER_NAV_BASE = [
-  { path: '/user/dashboard', label: 'Dashboard',  icon: LayoutDashboard },
-  { path: '/user/profile',   label: 'My Profile', icon: UserCircle },
-  { path: '/user/leads',     label: 'My Leads',   icon: TrendingUp,  module: 'leads',    roles: ['sales','manager'] },
-  { path: '/user/deals',     label: 'My Deals',   icon: Layers,      module: 'deals',    roles: ['sales','manager','finance'] },
-  { path: '/user/tasks',     label: 'My Tasks',   icon: CheckSquare, module: 'tasks' },
-  { path: '/user/contacts',  label: 'Contacts',   icon: Contact,     module: 'contacts', roles: ['sales','manager','support'] },
-  { path: '/user/tickets',   label: 'Tickets',    icon: Ticket,      module: 'tickets',  roles: ['support','manager'] },
+  { path: '/user/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { path: '/user/profile', label: 'My Profile', icon: UserCircle },
+  { path: '/user/leads', label: 'My Leads', icon: TrendingUp, module: 'leads', roles: ['sales', 'manager', 'marketing', 'customer_success'] },
+  { path: '/user/deals', label: 'My Deals', icon: Layers, module: 'deals', roles: ['sales', 'manager', 'finance', 'legal'] },
+  { path: '/user/tasks', label: 'My Tasks', icon: CheckSquare },
+  { path: '/user/contacts', label: 'Contacts', icon: Contact },
+  { path: '/user/tickets', label: 'Support Tickets', icon: Ticket, module: 'tickets' },
+  { path: '/user/hrms', label: 'My Leaves', icon: Calendar, module: 'hrms' },
+  { path: '/user/leave-approvals', label: 'Leave Approvals', icon: CheckSquare, module: 'hrms', roles: ['hr', 'manager', 'company_admin'] },
 ];
+
 
 /* ─── Role color config ─── */
 const ROLE_COLORS = {
-  super_admin:   '#A855F7',
+  super_admin: '#A855F7',
   company_admin: '#0EA5E9',
-  manager:       '#0EA5E9',
-  sales:         '#F59E0B',
-  support:       '#6366F1',
-  finance:       '#10B981',
+  manager: '#0EA5E9',
+  sales: '#F59E0B',
+  support: '#6366F1',
+  finance: '#10B981',
+  marketing: '#EC4899',
+  hr: '#8B5CF6',
+  operations: '#14B8A6',
+  customer_success: '#F97316',
+  legal: '#64748B',
+};
+
+const ROLE_LABELS = {
+  super_admin: 'Super Admin',
+  company_admin: 'Company Admin',
+  manager: 'Manager',
+  sales: 'Sales Rep',
+  support: 'Support',
+  finance: 'Finance',
+  marketing: 'Marketing',
+  hr: 'HR',
+  operations: 'Operations',
+  customer_success: 'Customer Success',
+  legal: 'Legal',
 };
 
 export default function Sidebar({ role, open, setOpen }) {
@@ -59,7 +83,7 @@ export default function Sidebar({ role, open, setOpen }) {
   const handleLogout = () => { logout(); navigate('/login'); };
 
   let navItems = [];
-  if (role === 'super_admin')   navItems = SUPER_ADMIN_NAV;
+  if (role === 'super_admin') navItems = SUPER_ADMIN_NAV;
   else if (role === 'company_admin') navItems = COMPANY_ADMIN_NAV;
   else navItems = USER_NAV_BASE;
 
@@ -77,13 +101,13 @@ export default function Sidebar({ role, open, setOpen }) {
 
   const roleLabel = role === 'super_admin' ? 'Super Admin'
     : role === 'company_admin' ? 'Company Admin'
-    : currentUser?.role ? currentUser.role.charAt(0).toUpperCase() + currentUser.role.slice(1)
-    : 'User';
+      : currentUser?.role ? (ROLE_LABELS[currentUser.role] || currentUser.role.replace('_', ' '))
+        : 'User';
 
   /* ─── Nav group headers ─── */
   const USER_GROUPS = [
-    { header: 'WORKSPACE', items: filteredNav.filter(i => ['Dashboard','My Profile'].includes(i.label)) },
-    { header: 'MY WORK',   items: filteredNav.filter(i => ['My Leads','My Deals','My Tasks','Contacts','Tickets'].includes(i.label)) },
+    { header: 'WORKSPACE', items: filteredNav.filter(i => ['Dashboard', 'My Profile', 'My Leaves'].includes(i.label)) },
+    { header: 'MY WORK', items: filteredNav.filter(i => ['My Leads', 'My Deals', 'My Tasks', 'Contacts', 'Support Tickets', 'Leave Approvals'].includes(i.label)) },
   ];
 
   return (
