@@ -3,38 +3,38 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Eye, EyeOff, Shield, Building2, User, ArrowRight, AlertCircle } from 'lucide-react';
 
-const DEMO_ACCOUNTS = [
-  {
-    role: 'super_admin',
-    label: 'Super Admin',
-    subtitle: 'TrackField Platform Owner',
-    email: 'owner@trackfield.io',
-    password: 'trackfield123',
-    color: '#A855F7',
-    icon: Shield,
-    description: 'Full platform control, manage all companies & users',
-  },
-  {
-    role: 'company_admin',
-    label: 'Company Admin',
-    subtitle: 'Nexora Solutions',
-    email: 'admin@nexora.io',
-    password: 'admin123',
-    color: '#0EA5E9',
-    icon: Building2,
-    description: 'Manage your team, CRM modules & permissions',
-  },
-  {
-    role: 'user',
-    label: 'Sales User',
-    subtitle: 'Nexora Solutions',
-    email: 'rohan@nexora.io',
-    password: 'user123',
-    color: '#10B981',
-    icon: User,
-    description: 'Daily CRM operations: leads, deals & tasks',
-  },
-];
+// const DEMO_ACCOUNTS = [
+//   {
+//     role: 'super_admin',
+//     label: 'Super Admin',
+//     subtitle: 'TrackField Platform Owner',
+//     email: 'owner@trackfield.io',
+//     password: 'trackfield123',
+//     color: '#A855F7',
+//     icon: Shield,
+//     description: 'Full platform control, manage all companies & users',
+//   },
+//   {
+//     role: 'company_admin',
+//     label: 'Company Admin',
+//     subtitle: 'Nexora Solutions',
+//     email: 'admin@nexora.io',
+//     password: 'admin123',
+//     color: '#0EA5E9',
+//     icon: Building2,
+//     description: 'Manage your team, CRM modules & permissions',
+//   },
+//   {
+//     role: 'user',
+//     label: 'Sales User',
+//     subtitle: 'Nexora Solutions',
+//     email: 'rohan@nexora.io',
+//     password: 'user123',
+//     color: '#10B981',
+//     icon: User,
+//     description: 'Daily CRM operations: leads, deals & tasks',
+//   },
+// ];
 
 export default function Login() {
   const { login } = useAuth();
@@ -45,22 +45,26 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleLogin = async (e) => {
-    e?.preventDefault();
-    if (!email || !password) { setError('Please enter email and password'); return; }
-    setLoading(true);
-    setError('');
-    await new Promise(r => setTimeout(r, 600)); // simulate async
-    const result = login(email, password);
-    setLoading(false);
-    if (result.success) {
-      if (result.role === 'super_admin') navigate('/admin/dashboard');
-      else if (result.role === 'company_admin') navigate('/company/dashboard');
-      else navigate('/user/dashboard');
-    } else {
-      setError(result.error);
-    }
-  };
+const handleLogin = async (e) => {
+  e?.preventDefault();
+  if (!email || !password) {
+    setError('Please enter email and password');
+    return;
+  }
+  setLoading(true);
+  setError('');
+  
+  const result = await login(email, password);  // now it's async
+  
+  setLoading(false);
+  if (result.success) {
+    if (result.role === 'super_admin') navigate('/admin/dashboard');
+    else if (result.role === 'company_admin') navigate('/company/dashboard');
+    else navigate('/user/dashboard');
+  } else {
+    setError(result.error);
+  }
+};
 
   const fillDemo = (account) => {
     setEmail(account.email);
