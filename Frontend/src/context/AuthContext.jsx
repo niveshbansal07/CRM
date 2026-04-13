@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import {
   initialCompanies,
   initialUsers,
@@ -18,8 +18,30 @@ const AuthContext = createContext(null);
 export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
   const [currentCompany, setCurrentCompany] = useState(null);
+  const [loading, setLoading] = useState(true); // ← prevents flash of login page
 
-  // ─── DATA STATE ────────────────────────────────────────────────────────────
+  // ─── RESTORE SESSION FROM LOCALSTORAGE ON APP START ───────────────────────
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    const userStr = localStorage.getItem('user');
+    const companyStr = localStorage.getItem('company');
+
+    if (token && userStr) {
+      try {
+        const user = JSON.parse(userStr);
+        setCurrentUser(user);
+        if (companyStr) setCurrentCompany(JSON.parse(companyStr));
+      } catch (err) {
+        console.error('Failed to restore session:', err);
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        localStorage.removeItem('company');
+      }
+    }
+    setLoading(false);
+  }, []);
+
+  // ─── DATA STATE (unchanged) ───────────────────────────────────────────────
   const [companies, setCompanies] = useState(() => initialCompanies.map(c => ({
     ...c,
     enabledModules: c.enabledModules?.includes('hrms') ? c.enabledModules : [...(c.enabledModules || []), 'hrms']
@@ -48,37 +70,49 @@ export function AuthProvider({ children }) {
     return perms;
   });
 
-  // ─── SUPER ADMIN CREDENTIALS ───────────────────────────────────────────────
-  const SUPER_ADMIN = { email: 'owner@trackfield.io', password: 'trackfield123', name: 'TrackField Admin', role: 'super_admin' };
+  // ─── LOGIN (with localStorage persistence) ─────────────────────────────────
+  const login = useCallback(async (email, password) => {
+    try {
+      const response = await fetch('http://localhost:8080/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
 
-  // ─── LOGIN ─────────────────────────────────────────────────────────────────
-  const login = useCallback((email, password) => {
-    // Super admin
-    if (email === SUPER_ADMIN.email && password === SUPER_ADMIN.password) {
-      setCurrentUser({ ...SUPER_ADMIN, id: 'super_admin' });
-      setCurrentCompany(null);
-      return { success: true, role: 'super_admin' };
-    }
-    // Company admin or user
-    const user = users.find(u => u.email === email && u.password === password);
-    if (user) {
-      const company = companies.find(c => c.id === user.companyId);
-      if (!company) return { success: false, error: 'Company not found' };
-      if (company.status === 'inactive') return { success: false, error: 'Your company account is inactive. Contact TrackField support.' };
-      if (user.status === 'suspended') return { success: false, error: 'Your account has been suspended.' };
-      setCurrentUser(user);
-      setCurrentCompany(company);
-      return { success: true, role: user.role };
-    }
-    return { success: false, error: 'Invalid credentials. Please try again.' };
-  }, [users, companies]);
+      const data = await response.json();
 
+      if (!response.ok || !data.success) {
+        return { success: false, error: data.message || 'Login failed' };
+      }
+
+      const { token, role, user, company } = data.data;
+
+      // Store authentication data
+      localStorage.setItem('token', token);
+      localStorage.setItem('user', JSON.stringify({ ...user, role }));
+      if (company) localStorage.setItem('company', JSON.stringify(company));
+
+      // Update React state
+      setCurrentUser({ ...user, role });
+      setCurrentCompany(company || null);
+
+      return { success: true, role };
+    } catch (error) {
+      console.error('Login error:', error);
+      return { success: false, error: 'Network error – cannot reach server' };
+    }
+  }, []);
+
+  // ─── LOGOUT (clear everything) ────────────────────────────────────────────
   const logout = useCallback(() => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    localStorage.removeItem('company');
     setCurrentUser(null);
     setCurrentCompany(null);
   }, []);
 
-  // ─── PERMISSION CHECK ──────────────────────────────────────────────────────
+  // ─── PERMISSION CHECK (unchanged) ─────────────────────────────────────────
   const hasPermission = useCallback((module, action = 'view') => {
     if (!currentUser) return false;
     if (currentUser.role === 'super_admin') return true;
@@ -88,17 +122,15 @@ export function AuthProvider({ children }) {
     return perms[module][action] === true;
   }, [currentUser, rolePermissions]);
 
-  // Check if a module is enabled for the current company (admin controls)
   const isModuleEnabled = useCallback((moduleId) => {
     if (!currentCompany) return true;
     return currentCompany.enabledModules?.includes(moduleId) ?? false;
   }, [currentCompany]);
 
-  // ─── COMPANY CRUD ─────────────────────────────────────────────────────────
+  // ─── COMPANY CRUD (unchanged) ─────────────────────────────────────────────
   const addCompany = (company) => {
     const newCompany = { ...company, id: `c${Date.now()}`, users: 1, leads: 0, revenue: 0 };
     setCompanies(prev => [...prev, newCompany]);
-    // Auto-create admin user
     const adminUser = {
       id: `u${Date.now()}`,
       companyId: newCompany.id,
@@ -129,7 +161,7 @@ export function AuthProvider({ children }) {
     setCompanies(prev => prev.map(c => c.id === id ? { ...c, status: c.status === 'active' ? 'inactive' : 'active' } : c));
   };
 
-  // ─── USER CRUD ────────────────────────────────────────────────────────────
+  // ─── USER CRUD (unchanged) ────────────────────────────────────────────────
   const addUser = (user) => {
     const newUser = {
       ...user,
@@ -139,7 +171,6 @@ export function AuthProvider({ children }) {
       avatar: user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2),
     };
     setUsers(prev => [...prev, newUser]);
-    // Update company user count
     setCompanies(prev => prev.map(c => c.id === user.companyId ? { ...c, users: c.users + 1 } : c));
     return newUser;
   };
@@ -160,7 +191,7 @@ export function AuthProvider({ children }) {
     setUsers(prev => prev.map(u => u.id === id ? { ...u, status: u.status === 'active' ? 'suspended' : 'active' } : u));
   };
 
-  // ─── LEADS CRUD ───────────────────────────────────────────────────────────
+  // ─── LEADS CRUD (unchanged) ───────────────────────────────────────────────
   const addLead = (lead) => {
     const newLead = { ...lead, id: `l${Date.now()}`, createdAt: new Date().toISOString().split('T')[0], lastContact: 'Today' };
     setLeads(prev => [...prev, newLead]);
@@ -171,7 +202,7 @@ export function AuthProvider({ children }) {
   const updateLead = (id, updates) => setLeads(prev => prev.map(l => l.id === id ? { ...l, ...updates } : l));
   const deleteLead = (id) => setLeads(prev => prev.filter(l => l.id !== id));
 
-  // ─── DEALS CRUD ───────────────────────────────────────────────────────────
+  // ─── DEALS CRUD (unchanged) ───────────────────────────────────────────────
   const addDeal = (deal) => {
     const newDeal = { ...deal, id: `d${Date.now()}`, createdAt: new Date().toISOString().split('T')[0] };
     setDeals(prev => [...prev, newDeal]);
@@ -180,7 +211,7 @@ export function AuthProvider({ children }) {
   const updateDeal = (id, updates) => setDeals(prev => prev.map(d => d.id === id ? { ...d, ...updates } : d));
   const deleteDeal = (id) => setDeals(prev => prev.filter(d => d.id !== id));
 
-  // ─── TASKS CRUD ───────────────────────────────────────────────────────────
+  // ─── TASKS CRUD (unchanged) ───────────────────────────────────────────────
   const addTask = (task) => {
     const newTask = { ...task, id: `t${Date.now()}` };
     setTasks(prev => [...prev, newTask]);
@@ -189,7 +220,7 @@ export function AuthProvider({ children }) {
   const updateTask = (id, updates) => setTasks(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
   const deleteTask = (id) => setTasks(prev => prev.filter(t => t.id !== id));
 
-  // ─── AUTOMATION CRUD ──────────────────────────────────────────────────────
+  // ─── AUTOMATION CRUD (unchanged) ──────────────────────────────────────────
   const addAutomation = (auto) => {
     const newAuto = { ...auto, id: `a${Date.now()}`, runs: 0 };
     setAutomations(prev => [...prev, newAuto]);
@@ -198,7 +229,7 @@ export function AuthProvider({ children }) {
   const deleteAutomation = (id) => setAutomations(prev => prev.filter(a => a.id !== id));
   const toggleAutomation = (id) => setAutomations(prev => prev.map(a => a.id === id ? { ...a, status: !a.status } : a));
 
-  // ─── TICKETS CRUD ─────────────────────────────────────────────────────────
+  // ─── TICKETS CRUD (unchanged) ─────────────────────────────────────────────
   const addTicket = (ticket) => {
     const newTicket = {
       ...ticket,
@@ -221,7 +252,7 @@ export function AuthProvider({ children }) {
     t.id === id ? { ...t, status: 'resolved', resolvedBy: currentUser?.id, resolvedByName: currentUser?.name, resolvedAt: new Date().toISOString().split('T')[0], comment } : t
   ));
 
-  // ─── HRMS (LEAVES & ATTENDANCE) CRUD ──────────────────────────────────────
+  // ─── HRMS CRUD (unchanged) ────────────────────────────────────────────────
   const addLeave = (leave) => {
     const newLeave = {
       ...leave,
@@ -248,7 +279,7 @@ export function AuthProvider({ children }) {
   };
   const updateAttendance = (id, updates) => setAttendance(prev => prev.map(a => a.id === id ? { ...a, ...updates } : a));
 
-  // ─── MODULE CONTROL (Company Admin) ──────────────────────────────────────
+  // ─── MODULE & PERMISSION CONTROLS (unchanged) ─────────────────────────────
   const toggleCompanyModule = (moduleId) => {
     if (!currentCompany) return;
     const enabled = currentCompany.enabledModules || [];
@@ -258,7 +289,6 @@ export function AuthProvider({ children }) {
     updateCompany(currentCompany.id, { enabledModules: updated });
   };
 
-  // Update role permissions for a company
   const updateRolePermission = (role, module, action, value) => {
     setRolePermissions(prev => ({
       ...prev,
@@ -271,6 +301,11 @@ export function AuthProvider({ children }) {
       }
     }));
   };
+
+  // Show loading indicator while restoring session
+  if (loading) {
+    return <div className="flex items-center justify-center h-screen">Loading...</div>;
+  }
 
   return (
     <AuthContext.Provider value={{
