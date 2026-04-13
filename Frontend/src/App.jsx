@@ -17,6 +17,8 @@ import SARevenue from './pages/SuperAdmin/Revenue';
 
 // Company Admin
 import CADashboard from './pages/CompanyAdmin/Dashboard';
+import CASubAdmins from './pages/CompanyAdmin/SubAdmins';
+import CAHumanResources from './pages/CompanyAdmin/HumanResources';
 import CAEmployees from './pages/CompanyAdmin/Employees';
 import CALeads from './pages/CompanyAdmin/Leads';
 import CADeals from './pages/CompanyAdmin/Deals';
@@ -89,6 +91,8 @@ function AppRoutes() {
         </ProtectedRoute>
       }>
         <Route path="dashboard" element={<CADashboard />} />
+        <Route path="sub-admins" element={<CASubAdmins />} />
+        <Route path="human-resources" element={<CAHumanResources />} />
         <Route path="employees" element={<CAEmployees />} />
         <Route path="leads" element={<CALeads />} />
         <Route path="deals" element={<CADeals />} />

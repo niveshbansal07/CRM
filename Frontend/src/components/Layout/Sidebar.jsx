@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Building2, Users, CreditCard, BarChart2,
   Zap, Settings, Package, ChevronLeft, ChevronRight,
   LogOut, TrendingUp, CheckSquare, Contact, Ticket,
-  Shield, Layers, Calendar, Activity, UserCircle,
+  Shield, Layers, Calendar, Activity, UserCircle, UserCog,
   DollarSign, Server,
 } from 'lucide-react';
 
@@ -22,6 +22,8 @@ const SUPER_ADMIN_NAV = [
 
 const COMPANY_ADMIN_NAV = [
   { path: '/company/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { path: '/company/sub-admins', label: 'Sub Admins', icon: UserCog },
+  { path: '/company/human-resources', label: 'Human Resources', icon: UserCog },
   { path: '/company/employees', label: 'Employees', icon: Users },
   { path: '/company/leads', label: 'Leads', icon: TrendingUp, module: 'leads' },
   { path: '/company/deals', label: 'Deals', icon: Layers, module: 'deals' },
