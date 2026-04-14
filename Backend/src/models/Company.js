@@ -24,6 +24,19 @@ const companySchema = new mongoose.Schema(
             index: true,
         },
 
+        domain: {
+            type: String,
+            default: "",
+            trim: true,
+            lowercase: true,
+        },
+
+        industry: {
+            type: String,
+            default: "Other",
+            trim: true,
+        },
+
         email: {
             type: String,
             default: "",
@@ -52,6 +65,11 @@ const companySchema = new mongoose.Schema(
         logo: {
             type: String,
             default: "",
+        },
+
+        enabledModules: {
+            type: [String],
+            default: [],
         },
 
         status: {

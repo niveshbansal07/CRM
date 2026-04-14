@@ -6,8 +6,6 @@ const getUsersController = async (req, res, next) => {
     try {
         const query = { deletedAt: null };
 
-        // Super admin sab users dekh sakta hai
-        // Company admin sirf apni company ke users dekh sakta hai
         if (req.user.role !== "super_admin") {
             query.companyId = req.user.companyId;
         }
@@ -19,7 +17,7 @@ const getUsersController = async (req, res, next) => {
         return res.status(200).json(
             new ApiResponse(200, "Users fetched successfully", {
                 count: users.length,
-                users,
+                users: users.map((user) => user.toSafeObject()),
             })
         );
     } catch (error) {
@@ -44,7 +42,9 @@ const getUserByIdController = async (req, res, next) => {
         }
 
         return res.status(200).json(
-            new ApiResponse(200, "User fetched successfully", { user })
+            new ApiResponse(200, "User fetched successfully", {
+                user: user.toSafeObject(),
+            })
         );
     } catch (error) {
         next(error);
@@ -68,8 +68,7 @@ const updateUserController = async (req, res, next) => {
         }
 
         const allowedFields = [
-            "firstName",
-            "lastName",
+            "fullName",
             "phone",
             "department",
             "designation",

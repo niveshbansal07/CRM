@@ -13,8 +13,7 @@ const buildRefreshExpiryDate = () => {
 
 const registerUser = async (payload, creator = null) => {
     const {
-        firstName,
-        lastName,
+        fullName,
         email,
         password,
         phone,
@@ -25,8 +24,8 @@ const registerUser = async (payload, creator = null) => {
         employeeId,
     } = payload;
 
-    if (!firstName || !email || !password) {
-        throw new ApiError(400, "First name, email and password are required");
+    if (!fullName || !email || !password) {
+        throw new ApiError(400, "Full name, email and password are required");
     }
 
     const normalizedEmail = email.toLowerCase().trim();
@@ -43,8 +42,7 @@ const registerUser = async (payload, creator = null) => {
     const passwordHash = await bcrypt.hash(password, 10);
 
     const user = await User.create({
-        firstName: firstName.trim(),
-        lastName: (lastName || "").trim(),
+        fullName: fullName.trim(),
         email: normalizedEmail,
         phone: phone || "",
         passwordHash,
@@ -124,8 +122,7 @@ const ensureDefaultSuperAdmin = async () => {
     const passwordHash = await bcrypt.hash(env.defaultSuperAdminPassword, 10);
 
     const superAdmin = await User.create({
-        firstName: env.defaultSuperAdminFirstName,
-        lastName: env.defaultSuperAdminLastName,
+        fullName: env.defaultSuperAdminName,
         email: env.defaultSuperAdminEmail,
         passwordHash,
         role: "super_admin",

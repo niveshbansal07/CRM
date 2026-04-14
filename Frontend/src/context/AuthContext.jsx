@@ -1,7 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import {
-  initialCompanies,
-  initialUsers,
   initialLeads,
   initialDeals,
   initialTasks,
@@ -12,81 +10,72 @@ import {
   initialAttendance,
   DEFAULT_ROLE_PERMISSIONS,
 } from '../data/mockData';
-
 import { API_BASE_URL, authHeaders } from "../utils/api";
+
 const AuthContext = createContext(null);
+
+const normalizeCompany = (company) => {
+  if (!company) return null;
+
+  return {
+    id: company.id || company._id,
+    name: company.name || '',
+    domain: company.domain || company.slug || '',
+    industry: company.industry || 'Other',
+    plan: company.plan || 'free',
+    status: company.status || 'active',
+    users: company.users ?? 0,
+    leads: company.leads ?? 0,
+    revenue: company.revenue ?? 0,
+    adminName: company.adminName || '',
+    adminEmail: company.adminEmail || '',
+    enabledModules: Array.isArray(company.enabledModules) ? company.enabledModules : [],
+    joinedDate: company.joinedDate || company.createdAt || '',
+  };
+};
+
+const normalizeUser = (user) => {
+  if (!user) return null;
+
+  const fullName = user.fullName || user.name || '';
+
+  return {
+    id: user.id || user._id,
+    companyId: user.companyId || null,
+    fullName,
+    email: user.email || '',
+    phone: user.phone || '',
+    role: user.role || 'user',
+    department: user.department || '',
+    designation: user.designation || '',
+    employeeId: user.employeeId || '',
+    status: user.status || 'active',
+    isEmailVerified: user.isEmailVerified ?? false,
+    lastLoginAt: user.lastLoginAt || null,
+    createdAt: user.createdAt || null,
+    updatedAt: user.updatedAt || null,
+    avatar:
+      user.avatar ||
+      fullName
+        .split(' ')
+        .filter(Boolean)
+        .map((n) => n[0])
+        .join('')
+        .toUpperCase()
+        .slice(0, 2),
+  };
+};
 
 export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
   const [currentCompany, setCurrentCompany] = useState(null);
-  const [loading, setLoading] = useState(true); // ← prevents flash of login page
+  const [loading, setLoading] = useState(true);
 
-  // ─── RESTORE SESSION FROM LOCALSTORAGE ON APP START ───────────────────────
-  useEffect(() => {
-    const restoreSession = async () => {
-      const accessToken = localStorage.getItem("accessToken");
+  // Production data from backend
+  const [companies, setCompanies] = useState([]);
+  const [users, setUsers] = useState([]);
 
-      if (!accessToken) {
-        setLoading(false);
-        return;
-      }
-
-      try {
-        const response = await fetch(`${API_BASE_URL}/auth/me`, {
-          method: "GET",
-          headers: authHeaders(),
-        });
-
-        const data = await response.json();
-
-        if (!response.ok || !data.success) {
-          throw new Error(data.message || "Session restore failed");
-        }
-
-        const user = data.data.user;
-        const company = data.data.company;
-
-        setCurrentUser(user);
-        setCurrentCompany(company || null);
-
-        localStorage.setItem("user", JSON.stringify(user));
-
-        if (company) {
-          localStorage.setItem("company", JSON.stringify(company));
-        } else {
-          localStorage.removeItem("company");
-        }
-      } catch (err) {
-        console.error("Failed to restore session:", err);
-
-        localStorage.removeItem("accessToken");
-        localStorage.removeItem("refreshToken");
-        localStorage.removeItem("user");
-        localStorage.removeItem("company");
-
-        setCurrentUser(null);
-        setCurrentCompany(null);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    restoreSession();
-  }, []);
-
-  // ─── DATA STATE (unchanged) ───────────────────────────────────────────────
-  const [companies, setCompanies] = useState(() => initialCompanies.map(c => ({
-    ...c,
-    enabledModules: c.enabledModules?.includes('hrms') ? c.enabledModules : [...(c.enabledModules || []), 'hrms']
-  })));
-  const [users, setUsers] = useState(() => initialUsers.map(u => ({
-    ...u,
-    joiningDate: u.joiningDate || '2024-01-10',
-    employeeId: u.employeeId || 'EMP-' + u.id.replace('u', '').padStart(3, '0'),
-    verificationStatus: u.verificationStatus !== undefined ? u.verificationStatus : true,
-    documents: u.documents || [{ name: 'Resume.pdf', type: 'resume' }, { name: 'ID_Proof.pdf', type: 'id' }],
-    offerLetter: u.offerLetter || 'Offer_Letter.pdf'
-  })));
+  // Temporary mock fallback for modules not yet backed by API
   const [leads, setLeads] = useState(initialLeads);
   const [deals, setDeals] = useState(initialDeals);
   const [tasks, setTasks] = useState(initialTasks);
@@ -95,21 +84,126 @@ export function AuthProvider({ children }) {
   const [tickets, setTickets] = useState(initialTickets);
   const [leaves, setLeaves] = useState(initialLeaves);
   const [attendance, setAttendance] = useState(initialAttendance);
+
   const [rolePermissions, setRolePermissions] = useState(() => {
     const perms = JSON.parse(JSON.stringify(DEFAULT_ROLE_PERMISSIONS));
-    Object.keys(perms).forEach(role => {
-      perms[role].hrms = { view: true, create: true, edit: ['hr', 'manager', 'company_admin'].includes(role), delete: false };
+    Object.keys(perms).forEach((role) => {
+      perms[role].hrms = {
+        view: true,
+        create: true,
+        edit: ['hr', 'manager', 'company_admin'].includes(role),
+        delete: false,
+      };
     });
     return perms;
   });
 
-  // ─── LOGIN (with localStorage persistence) ─────────────────────────────────
+  const fetchCompanies = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/companies`, {
+        method: 'GET',
+        headers: authHeaders(),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        return;
+      }
+
+      const list = Array.isArray(data?.data?.companies) ? data.data.companies : [];
+      setCompanies(list.map(normalizeCompany));
+    } catch (error) {
+      console.error('Failed to fetch companies:', error);
+    }
+  }, []);
+
+  const fetchUsers = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/users`, {
+        method: 'GET',
+        headers: authHeaders(),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        return;
+      }
+
+      const list = Array.isArray(data?.data?.users) ? data.data.users : [];
+      setUsers(list.map(normalizeUser));
+    } catch (error) {
+      console.error('Failed to fetch users:', error);
+    }
+  }, []);
+
+  const bootstrapAppData = useCallback(async () => {
+    await Promise.allSettled([fetchCompanies(), fetchUsers()]);
+  }, [fetchCompanies, fetchUsers]);
+
+  // Restore session on app start
+  useEffect(() => {
+    const restoreSession = async () => {
+      const accessToken = localStorage.getItem('accessToken');
+
+      if (!accessToken) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/auth/me`, {
+          method: 'GET',
+          headers: authHeaders(),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok || !data.success) {
+          throw new Error(data.message || 'Session restore failed');
+        }
+
+        const user = normalizeUser(data?.data?.user);
+        const company = normalizeCompany(data?.data?.company);
+
+        setCurrentUser(user);
+        setCurrentCompany(company || null);
+
+        localStorage.setItem('user', JSON.stringify(user));
+        if (company) {
+          localStorage.setItem('company', JSON.stringify(company));
+        } else {
+          localStorage.removeItem('company');
+        }
+
+        await bootstrapAppData();
+      } catch (err) {
+        console.error('Failed to restore session:', err);
+
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+        localStorage.removeItem('user');
+        localStorage.removeItem('company');
+
+        setCurrentUser(null);
+        setCurrentCompany(null);
+        setCompanies([]);
+        setUsers([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    restoreSession();
+  }, [bootstrapAppData]);
+
   const login = useCallback(async (email, password) => {
     try {
       const response = await fetch(`${API_BASE_URL}/auth/login`, {
-        method: "POST",
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify({ email, password }),
       });
@@ -119,56 +213,63 @@ export function AuthProvider({ children }) {
       if (!response.ok || !data.success) {
         return {
           success: false,
-          error: data.message || "Login failed",
+          error: data.message || 'Login failed',
         };
       }
 
       const { accessToken, refreshToken, role, user, company } = data.data;
 
-      localStorage.setItem("accessToken", accessToken);
-      localStorage.setItem("refreshToken", refreshToken);
-      localStorage.setItem("user", JSON.stringify({ ...user, role }));
+      const normalizedUser = normalizeUser({ ...user, role });
+      const normalizedCompany = normalizeCompany(company);
 
-      if (company) {
-        localStorage.setItem("company", JSON.stringify(company));
+      localStorage.setItem('accessToken', accessToken);
+      localStorage.setItem('refreshToken', refreshToken);
+      localStorage.setItem('user', JSON.stringify(normalizedUser));
+
+      if (normalizedCompany) {
+        localStorage.setItem('company', JSON.stringify(normalizedCompany));
       } else {
-        localStorage.removeItem("company");
+        localStorage.removeItem('company');
       }
 
-      setCurrentUser({ ...user, role });
-      setCurrentCompany(company || null);
+      setCurrentUser(normalizedUser);
+      setCurrentCompany(normalizedCompany || null);
+
+      await bootstrapAppData();
 
       return {
         success: true,
         role,
       };
     } catch (error) {
-      console.error("Login error:", error);
+      console.error('Login error:', error);
       return {
         success: false,
-        error: "Network error – cannot reach server",
+        error: 'Network error – cannot reach server',
       };
     }
-  }, []);
+  }, [bootstrapAppData]);
 
-  // ─── LOGOUT (clear everything) ────────────────────────────────────────────
   const logout = useCallback(() => {
-    localStorage.removeItem("accessToken");
-    localStorage.removeItem("refreshToken");
-    localStorage.removeItem("user");
-    localStorage.removeItem("company");
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
+    localStorage.removeItem('user');
+    localStorage.removeItem('company');
 
     setCurrentUser(null);
     setCurrentCompany(null);
+    setCompanies([]);
+    setUsers([]);
   }, []);
 
-  // ─── PERMISSION CHECK (unchanged) ─────────────────────────────────────────
   const hasPermission = useCallback((module, action = 'view') => {
     if (!currentUser) return false;
     if (currentUser.role === 'super_admin') return true;
     if (currentUser.role === 'company_admin') return true;
+
     const perms = rolePermissions[currentUser.role];
     if (!perms || !perms[module]) return false;
+
     return perms[module][action] === true;
   }, [currentUser, rolePermissions]);
 
@@ -177,109 +278,240 @@ export function AuthProvider({ children }) {
     return currentCompany.enabledModules?.includes(moduleId) ?? false;
   }, [currentCompany]);
 
-  // ─── COMPANY CRUD (unchanged) ─────────────────────────────────────────────
-  const addCompany = (company) => {
-    const newCompany = { ...company, id: `c${Date.now()}`, users: 1, leads: 0, revenue: 0 };
-    setCompanies(prev => [...prev, newCompany]);
-    const adminUser = {
-      id: `u${Date.now()}`,
-      companyId: newCompany.id,
-      name: company.adminName,
-      email: company.adminEmail,
-      password: company.adminPassword || 'admin123',
-      role: 'company_admin',
-      department: 'Management',
-      status: 'active',
-      lastLogin: 'Never',
-      avatar: company.adminName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2),
-    };
-    setUsers(prev => [...prev, adminUser]);
-    return newCompany;
-  };
+  // Company CRUD - now backend based
+  const addCompany = useCallback(async (company) => {
+    try {
+      const payload = {
+        name: company.name,
+        domain: company.domain || '',
+        industry: company.industry || 'Technology',
+        plan: company.plan || 'pro',
+        adminName: company.adminName,
+        adminEmail: company.adminEmail,
+        adminPassword: company.adminPassword || 'admin123',
+        enabledModules: company.enabledModules || [],
+      };
 
-  const updateCompany = (id, updates) => {
-    setCompanies(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
-    if (currentCompany?.id === id) setCurrentCompany(prev => ({ ...prev, ...updates }));
-  };
+      const response = await fetch(`${API_BASE_URL}/companies`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify(payload),
+      });
 
-  const deleteCompany = (id) => {
-    setCompanies(prev => prev.filter(c => c.id !== id));
-    setUsers(prev => prev.filter(u => u.companyId !== id));
-  };
+      const data = await response.json();
 
-  const toggleCompanyStatus = (id) => {
-    setCompanies(prev => prev.map(c => c.id === id ? { ...c, status: c.status === 'active' ? 'inactive' : 'active' } : c));
-  };
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'Failed to create company');
+      }
 
-  // ─── USER CRUD (unchanged) ────────────────────────────────────────────────
-  const addUser = (user) => {
-    const newUser = {
-      ...user,
-      id: `u${Date.now()}`,
-      status: 'active',
-      lastLogin: 'Never',
-      avatar: user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2),
-    };
-    setUsers(prev => [...prev, newUser]);
-    setCompanies(prev => prev.map(c => c.id === user.companyId ? { ...c, users: c.users + 1 } : c));
-    return newUser;
-  };
+      await bootstrapAppData();
 
-  const updateUser = (id, updates) => {
-    setUsers(prev => prev.map(u => u.id === id ? { ...u, ...updates } : u));
-  };
-
-  const deleteUser = (id) => {
-    const user = users.find(u => u.id === id);
-    setUsers(prev => prev.filter(u => u.id !== id));
-    if (user) {
-      setCompanies(prev => prev.map(c => c.id === user.companyId ? { ...c, users: Math.max(0, c.users - 1) } : c));
+      return data?.data?.company ? normalizeCompany(data.data.company) : null;
+    } catch (error) {
+      console.error('Add company failed:', error);
+      throw error;
     }
-  };
+  }, [bootstrapAppData]);
 
-  const toggleUserStatus = (id) => {
-    setUsers(prev => prev.map(u => u.id === id ? { ...u, status: u.status === 'active' ? 'suspended' : 'active' } : u));
-  };
+  const updateCompany = useCallback(async (id, updates) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/companies/${id}`, {
+        method: 'PATCH',
+        headers: authHeaders(),
+        body: JSON.stringify(updates),
+      });
 
-  // ─── LEADS CRUD (unchanged) ───────────────────────────────────────────────
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'Failed to update company');
+      }
+
+      await fetchCompanies();
+      return data?.data?.company ? normalizeCompany(data.data.company) : null;
+    } catch (error) {
+      console.error('Update company failed:', error);
+      throw error;
+    }
+  }, [fetchCompanies]);
+
+  const deleteCompany = useCallback(async (id) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/companies/${id}`, {
+        method: 'DELETE',
+        headers: authHeaders(),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'Failed to delete company');
+      }
+
+      await bootstrapAppData();
+      return true;
+    } catch (error) {
+      console.error('Delete company failed:', error);
+      throw error;
+    }
+  }, [bootstrapAppData]);
+
+  const toggleCompanyStatus = useCallback(async (id) => {
+    const target = companies.find((c) => c.id === id);
+    if (!target) return;
+
+    const nextStatus = target.status === 'active' ? 'inactive' : 'active';
+    await updateCompany(id, { status: nextStatus });
+  }, [companies, updateCompany]);
+
+  // User CRUD - backend based
+  const addUser = useCallback(async (user) => {
+    try {
+      const payload = {
+        fullName: user.fullName,
+        email: user.email,
+        password: user.password || 'admin123',
+        phone: user.phone || '',
+        role: user.role || 'user',
+        companyId: user.companyId || currentCompany?.id || null,
+        department: user.department || '',
+        designation: user.designation || '',
+        employeeId: user.employeeId || '',
+      };
+
+      const response = await fetch(`${API_BASE_URL}/auth/register`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'Failed to create user');
+      }
+
+      await fetchUsers();
+      return data?.data?.user ? normalizeUser(data.data.user) : null;
+    } catch (error) {
+      console.error('Add user failed:', error);
+      throw error;
+    }
+  }, [currentCompany, fetchUsers]);
+
+  const updateUser = useCallback(async (id, updates) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/users/${id}`, {
+        method: 'PATCH',
+        headers: authHeaders(),
+        body: JSON.stringify(updates),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'Failed to update user');
+      }
+
+      await fetchUsers();
+      return data?.data?.user ? normalizeUser(data.data.user) : null;
+    } catch (error) {
+      console.error('Update user failed:', error);
+      throw error;
+    }
+  }, [fetchUsers]);
+
+  const deleteUser = useCallback(async (id) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/users/${id}`, {
+        method: 'DELETE',
+        headers: authHeaders(),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'Failed to delete user');
+      }
+
+      await fetchUsers();
+      return true;
+    } catch (error) {
+      console.error('Delete user failed:', error);
+      throw error;
+    }
+  }, [fetchUsers]);
+
+  const toggleUserStatus = useCallback(async (id) => {
+    const target = users.find((u) => u.id === id);
+    if (!target) return;
+
+    const nextStatus = target.status === 'active' ? 'suspended' : 'active';
+    await updateUser(id, { status: nextStatus });
+  }, [users, updateUser]);
+
+  // Temporary mock-backed modules
   const addLead = (lead) => {
-    const newLead = { ...lead, id: `l${Date.now()}`, createdAt: new Date().toISOString().split('T')[0], lastContact: 'Today' };
-    setLeads(prev => [...prev, newLead]);
-    setCompanies(prev => prev.map(c => c.id === lead.companyId ? { ...c, leads: c.leads + 1 } : c));
+    const newLead = {
+      ...lead,
+      id: `l${Date.now()}`,
+      createdAt: new Date().toISOString().split('T')[0],
+      lastContact: 'Today',
+    };
+    setLeads((prev) => [...prev, newLead]);
     return newLead;
   };
 
-  const updateLead = (id, updates) => setLeads(prev => prev.map(l => l.id === id ? { ...l, ...updates } : l));
-  const deleteLead = (id) => setLeads(prev => prev.filter(l => l.id !== id));
+  const updateLead = (id, updates) =>
+    setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, ...updates } : l)));
 
-  // ─── DEALS CRUD (unchanged) ───────────────────────────────────────────────
+  const deleteLead = (id) =>
+    setLeads((prev) => prev.filter((l) => l.id !== id));
+
   const addDeal = (deal) => {
-    const newDeal = { ...deal, id: `d${Date.now()}`, createdAt: new Date().toISOString().split('T')[0] };
-    setDeals(prev => [...prev, newDeal]);
+    const newDeal = {
+      ...deal,
+      id: `d${Date.now()}`,
+      createdAt: new Date().toISOString().split('T')[0],
+    };
+    setDeals((prev) => [...prev, newDeal]);
     return newDeal;
   };
-  const updateDeal = (id, updates) => setDeals(prev => prev.map(d => d.id === id ? { ...d, ...updates } : d));
-  const deleteDeal = (id) => setDeals(prev => prev.filter(d => d.id !== id));
 
-  // ─── TASKS CRUD (unchanged) ───────────────────────────────────────────────
+  const updateDeal = (id, updates) =>
+    setDeals((prev) => prev.map((d) => (d.id === id ? { ...d, ...updates } : d)));
+
+  const deleteDeal = (id) =>
+    setDeals((prev) => prev.filter((d) => d.id !== id));
+
   const addTask = (task) => {
     const newTask = { ...task, id: `t${Date.now()}` };
-    setTasks(prev => [...prev, newTask]);
+    setTasks((prev) => [...prev, newTask]);
     return newTask;
   };
-  const updateTask = (id, updates) => setTasks(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
-  const deleteTask = (id) => setTasks(prev => prev.filter(t => t.id !== id));
 
-  // ─── AUTOMATION CRUD (unchanged) ──────────────────────────────────────────
+  const updateTask = (id, updates) =>
+    setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, ...updates } : t)));
+
+  const deleteTask = (id) =>
+    setTasks((prev) => prev.filter((t) => t.id !== id));
+
   const addAutomation = (auto) => {
     const newAuto = { ...auto, id: `a${Date.now()}`, runs: 0 };
-    setAutomations(prev => [...prev, newAuto]);
+    setAutomations((prev) => [...prev, newAuto]);
   };
-  const updateAutomation = (id, updates) => setAutomations(prev => prev.map(a => a.id === id ? { ...a, ...updates } : a));
-  const deleteAutomation = (id) => setAutomations(prev => prev.filter(a => a.id !== id));
-  const toggleAutomation = (id) => setAutomations(prev => prev.map(a => a.id === id ? { ...a, status: !a.status } : a));
 
-  // ─── TICKETS CRUD (unchanged) ─────────────────────────────────────────────
+  const updateAutomation = (id, updates) =>
+    setAutomations((prev) => prev.map((a) => (a.id === id ? { ...a, ...updates } : a)));
+
+  const deleteAutomation = (id) =>
+    setAutomations((prev) => prev.filter((a) => a.id !== id));
+
+  const toggleAutomation = (id) =>
+    setAutomations((prev) =>
+      prev.map((a) => (a.id === id ? { ...a, status: !a.status } : a))
+    );
+
   const addTicket = (ticket) => {
     const newTicket = {
       ...ticket,
@@ -288,21 +520,37 @@ export function AuthProvider({ children }) {
       status: 'open',
       companyId: currentCompany?.id,
       createdBy: currentUser?.id,
-      createdByName: currentUser?.name,
+      createdByName: currentUser?.fullName,
       resolvedBy: null,
       resolvedAt: null,
       comment: '',
     };
-    setTickets(prev => [newTicket, ...prev]);
+    setTickets((prev) => [newTicket, ...prev]);
     return newTicket;
   };
-  const updateTicket = (id, updates) => setTickets(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
-  const deleteTicket = (id) => setTickets(prev => prev.filter(t => t.id !== id));
-  const resolveTicket = (id, comment) => setTickets(prev => prev.map(t =>
-    t.id === id ? { ...t, status: 'resolved', resolvedBy: currentUser?.id, resolvedByName: currentUser?.name, resolvedAt: new Date().toISOString().split('T')[0], comment } : t
-  ));
 
-  // ─── HRMS CRUD (unchanged) ────────────────────────────────────────────────
+  const updateTicket = (id, updates) =>
+    setTickets((prev) => prev.map((t) => (t.id === id ? { ...t, ...updates } : t)));
+
+  const deleteTicket = (id) =>
+    setTickets((prev) => prev.filter((t) => t.id !== id));
+
+  const resolveTicket = (id, comment) =>
+    setTickets((prev) =>
+      prev.map((t) =>
+        t.id === id
+          ? {
+            ...t,
+            status: 'resolved',
+            resolvedBy: currentUser?.id,
+            resolvedByName: currentUser?.fullName,
+            resolvedAt: new Date().toISOString().split('T')[0],
+            comment,
+          }
+          : t
+      )
+    );
+
   const addLeave = (leave) => {
     const newLeave = {
       ...leave,
@@ -312,10 +560,12 @@ export function AuthProvider({ children }) {
       companyId: currentCompany?.id,
       userId: currentUser?.id,
     };
-    setLeaves(prev => [newLeave, ...prev]);
+    setLeaves((prev) => [newLeave, ...prev]);
     return newLeave;
   };
-  const updateLeave = (id, updates) => setLeaves(prev => prev.map(l => l.id === id ? { ...l, ...updates } : l));
+
+  const updateLeave = (id, updates) =>
+    setLeaves((prev) => prev.map((l) => (l.id === id ? { ...l, ...updates } : l)));
 
   const addAttendance = (record) => {
     const newRecord = {
@@ -324,58 +574,111 @@ export function AuthProvider({ children }) {
       userId: currentUser?.id,
       date: new Date().toISOString().split('T')[0],
     };
-    setAttendance(prev => [newRecord, ...prev]);
+    setAttendance((prev) => [newRecord, ...prev]);
     return newRecord;
   };
-  const updateAttendance = (id, updates) => setAttendance(prev => prev.map(a => a.id === id ? { ...a, ...updates } : a));
 
-  // ─── MODULE & PERMISSION CONTROLS (unchanged) ─────────────────────────────
+  const updateAttendance = (id, updates) =>
+    setAttendance((prev) => prev.map((a) => (a.id === id ? { ...a, ...updates } : a)));
+
   const toggleCompanyModule = (moduleId) => {
     if (!currentCompany) return;
     const enabled = currentCompany.enabledModules || [];
     const updated = enabled.includes(moduleId)
-      ? enabled.filter(m => m !== moduleId)
+      ? enabled.filter((m) => m !== moduleId)
       : [...enabled, moduleId];
-    updateCompany(currentCompany.id, { enabledModules: updated });
+
+    setCurrentCompany((prev) => ({
+      ...prev,
+      enabledModules: updated,
+    }));
   };
 
   const updateRolePermission = (role, module, action, value) => {
-    setRolePermissions(prev => ({
+    setRolePermissions((prev) => ({
       ...prev,
       [role]: {
         ...prev[role],
         [module]: {
           ...(prev[role]?.[module] || {}),
           [action]: value,
-        }
-      }
+        },
+      },
     }));
   };
 
-  // Show loading indicator while restoring session
   if (loading) {
     return <div className="flex items-center justify-center h-screen">Loading...</div>;
   }
 
   return (
-    <AuthContext.Provider value={{
-      currentUser, currentCompany,
-      login, logout,
-      hasPermission, isModuleEnabled,
+    <AuthContext.Provider
+      value={{
+        currentUser,
+        currentCompany,
+        login,
+        logout,
+        hasPermission,
+        isModuleEnabled,
 
-      companies, addCompany, updateCompany, deleteCompany, toggleCompanyStatus,
-      users, addUser, updateUser, deleteUser, toggleUserStatus,
-      leads, addLead, updateLead, deleteLead,
-      deals, addDeal, updateDeal, deleteDeal,
-      tasks, addTask, updateTask, deleteTask,
-      payments, setPayments,
-      automations, addAutomation, updateAutomation, deleteAutomation, toggleAutomation,
-      tickets, addTicket, updateTicket, deleteTicket, resolveTicket,
-      leaves, addLeave, updateLeave,
-      attendance, addAttendance, updateAttendance,
-      rolePermissions, updateRolePermission,
-      toggleCompanyModule,
-    }}>
+        companies,
+        addCompany,
+        updateCompany,
+        deleteCompany,
+        toggleCompanyStatus,
+
+        users,
+        addUser,
+        updateUser,
+        deleteUser,
+        toggleUserStatus,
+
+        leads,
+        addLead,
+        updateLead,
+        deleteLead,
+
+        deals,
+        addDeal,
+        updateDeal,
+        deleteDeal,
+
+        tasks,
+        addTask,
+        updateTask,
+        deleteTask,
+
+        payments,
+        setPayments,
+
+        automations,
+        addAutomation,
+        updateAutomation,
+        deleteAutomation,
+        toggleAutomation,
+
+        tickets,
+        addTicket,
+        updateTicket,
+        deleteTicket,
+        resolveTicket,
+
+        leaves,
+        addLeave,
+        updateLeave,
+
+        attendance,
+        addAttendance,
+        updateAttendance,
+
+        rolePermissions,
+        updateRolePermission,
+        toggleCompanyModule,
+
+        fetchCompanies,
+        fetchUsers,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
