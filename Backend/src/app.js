@@ -1,23 +1,35 @@
-const dotenv = require('dotenv');
-dotenv.config();
-const express = require('express');
+const express = require("express");
+const cors = require("cors");
+const morgan = require("morgan");
+const env = require("./config/env");
+
+const routes = require("./routes");
+const notFound = require("./middlewares/notFound.middleware");
+const errorHandler = require("./middlewares/error.middleware");
+
 const app = express();
 
-// Middleware
-const cors = require('cors');
-app.use(cors({ origin: 'http://localhost:5173', credentials: true }));
+app.use(
+    cors({
+        origin: env.frontendUrl,
+        credentials: true,
+    })
+);
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(morgan(env.nodeEnv === "development" ? "dev" : "combined"));
 
-// Controllers
-const authRouter = require('./routes/auth.Router.js');
-
-// Routes
-
-app.get('/', (req, res) => {
-    res.send('Welcome to the CRM API');
+app.get("/", (req, res) => {
+    res.status(200).json({
+        success: true,
+        message: "TrackField CRM Backend Running",
+    });
 });
-app.use('/auth', authRouter); 
 
+app.use("/api", routes);
+
+app.use(notFound);
+app.use(errorHandler);
 
 module.exports = app;

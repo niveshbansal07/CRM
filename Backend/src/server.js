@@ -1,14 +1,19 @@
-const app = require('./app');
-const connectDB = require('./configs/dbConnect');
+require("dotenv").config();
 
-const PORT = process.env.PORT || 5000;
+const app = require("./app");
+const connectDB = require("./config/db");
+const { ensureDefaultSuperAdmin } = require("./services/auth.service");
+const env = require("./config/env");
 
 const startServer = async () => {
   try {
     await connectDB();
 
-    app.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`);
+    // App start hote hi ensure karega ki ek default super admin ho
+    await ensureDefaultSuperAdmin();
+
+    app.listen(env.port, () => {
+      console.log(`Server running on port ${env.port}`);
     });
   } catch (error) {
     console.error("Server Failed to Start");
