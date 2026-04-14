@@ -13,6 +13,7 @@ import {
   DEFAULT_ROLE_PERMISSIONS,
 } from '../data/mockData';
 
+import { API_BASE_URL, authHeaders } from "../utils/api";
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
@@ -22,23 +23,55 @@ export function AuthProvider({ children }) {
 
   // ─── RESTORE SESSION FROM LOCALSTORAGE ON APP START ───────────────────────
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    const userStr = localStorage.getItem('user');
-    const companyStr = localStorage.getItem('company');
+    const restoreSession = async () => {
+      const accessToken = localStorage.getItem("accessToken");
 
-    if (token && userStr) {
-      try {
-        const user = JSON.parse(userStr);
-        setCurrentUser(user);
-        if (companyStr) setCurrentCompany(JSON.parse(companyStr));
-      } catch (err) {
-        console.error('Failed to restore session:', err);
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        localStorage.removeItem('company');
+      if (!accessToken) {
+        setLoading(false);
+        return;
       }
-    }
-    setLoading(false);
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/auth/me`, {
+          method: "GET",
+          headers: authHeaders(),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok || !data.success) {
+          throw new Error(data.message || "Session restore failed");
+        }
+
+        const user = data.data.user;
+        const company = data.data.company;
+
+        setCurrentUser(user);
+        setCurrentCompany(company || null);
+
+        localStorage.setItem("user", JSON.stringify(user));
+
+        if (company) {
+          localStorage.setItem("company", JSON.stringify(company));
+        } else {
+          localStorage.removeItem("company");
+        }
+      } catch (err) {
+        console.error("Failed to restore session:", err);
+
+        localStorage.removeItem("accessToken");
+        localStorage.removeItem("refreshToken");
+        localStorage.removeItem("user");
+        localStorage.removeItem("company");
+
+        setCurrentUser(null);
+        setCurrentCompany(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    restoreSession();
   }, []);
 
   // ─── DATA STATE (unchanged) ───────────────────────────────────────────────
@@ -73,41 +106,58 @@ export function AuthProvider({ children }) {
   // ─── LOGIN (with localStorage persistence) ─────────────────────────────────
   const login = useCallback(async (email, password) => {
     try {
-      const response = await fetch('http://localhost:8080/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch(`${API_BASE_URL}/auth/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({ email, password }),
       });
 
       const data = await response.json();
 
       if (!response.ok || !data.success) {
-        return { success: false, error: data.message || 'Login failed' };
+        return {
+          success: false,
+          error: data.message || "Login failed",
+        };
       }
 
-      const { token, role, user, company } = data.data;
+      const { accessToken, refreshToken, role, user, company } = data.data;
 
-      // Store authentication data
-      localStorage.setItem('token', token);
-      localStorage.setItem('user', JSON.stringify({ ...user, role }));
-      if (company) localStorage.setItem('company', JSON.stringify(company));
+      localStorage.setItem("accessToken", accessToken);
+      localStorage.setItem("refreshToken", refreshToken);
+      localStorage.setItem("user", JSON.stringify({ ...user, role }));
 
-      // Update React state
+      if (company) {
+        localStorage.setItem("company", JSON.stringify(company));
+      } else {
+        localStorage.removeItem("company");
+      }
+
       setCurrentUser({ ...user, role });
       setCurrentCompany(company || null);
 
-      return { success: true, role };
+      return {
+        success: true,
+        role,
+      };
     } catch (error) {
-      console.error('Login error:', error);
-      return { success: false, error: 'Network error – cannot reach server' };
+      console.error("Login error:", error);
+      return {
+        success: false,
+        error: "Network error – cannot reach server",
+      };
     }
   }, []);
 
   // ─── LOGOUT (clear everything) ────────────────────────────────────────────
   const logout = useCallback(() => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    localStorage.removeItem('company');
+    localStorage.removeItem("accessToken");
+    localStorage.removeItem("refreshToken");
+    localStorage.removeItem("user");
+    localStorage.removeItem("company");
+
     setCurrentUser(null);
     setCurrentCompany(null);
   }, []);
